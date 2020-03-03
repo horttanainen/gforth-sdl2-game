@@ -1,0 +1,17 @@
+This folder contains c code to create empty window with sdl2 and forth code to
+do the same.
+
+Prerequisites:
+sdl2
+gforth
+gcc
+
+To build the c code:
+gcc game.c -o game.exe $(sdl2-config --cflags) $(sdl2-config --libs)
+
+To run the c code:
+./game.exe
+
+To run the forth version:
+gforth game.fs
+and type "game" as instructed
