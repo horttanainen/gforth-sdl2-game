@@ -1,3 +1,5 @@
+\ Most of this stuff is based on Timothy Trussell's gforth sdl opengl lessons:
+\ ftp://ftp.taygeta.com/pub/Forth/Archive/tutorials/gforth-sdl-opengl/
 
 c-library sdl2_lib
 s" SDL2" add-lib
