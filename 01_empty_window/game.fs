@@ -36,10 +36,10 @@ cr cr .( Loading Game...) cr
 
 FALSE value opengl-exit-flag
 
-\ ---[ screen ]------------------------------------------------------
+\ ---[ window ]------------------------------------------------------
 \ Pointer for working SDL surface
 
-0 value screen
+0 value window
 
 \ ---[ Screen Dimensions ]-------------------------------------------
 \ These specify the size/depth of the SDL display surface
@@ -89,7 +89,7 @@ create event here sdl-event% nip dup allot 0 fill
     sdl-geterror type cr
     bye
   then
-  to screen                     \ success! save new pointer
+  to window                     \ success! save new pointer
 ;
 
 
