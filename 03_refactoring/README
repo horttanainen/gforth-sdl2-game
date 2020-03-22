@@ -1,0 +1,16 @@
+This folder contains essentially the same code as in 02_load_picture but I have
+refactored both the c code and forth to be more idiomatic respectively.
+
+Prerequisites:
+sdl2
+gforth
+gcc
+
+To build the c code:
+gcc game.c -o game.exe $(sdl2-config --cflags) $(sdl2-config --libs)
+
+To run the c code:
+./game.exe
+
+To run the forth version:
+gforth game.fs
