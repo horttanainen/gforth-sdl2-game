@@ -83,7 +83,7 @@ Time initTime() {
 }
 
 void handleKeyboard(Player * player) {
-  const Uint8 *keyboardState = SDL_GetKeyboardState(NULL);
+  const Uint8 * keyboardState = SDL_GetKeyboardState(NULL);
   if (keyboardState[SDL_SCANCODE_A] && keyboardState[SDL_SCANCODE_D]) {
     player->ax = 0;
   } else if (keyboardState[SDL_SCANCODE_A]) {
@@ -104,7 +104,7 @@ void handleKeyboard(Player * player) {
   }
 }
 
-void handleEvents(Player * player, bool * quit) {
+void handleEvents(bool * quit) {
   SDL_Event event;
   SDL_PollEvent(&event);
   switch (event.type)
@@ -113,7 +113,6 @@ void handleEvents(Player * player, bool * quit) {
       *quit = true;
       break;
   }
-  handleKeyboard(player);
 }
 
 int cleanUpAndExit(Graphics * graphics) {
@@ -179,7 +178,8 @@ int main(int argc, char ** argv)
     };
 
     render(&interpolatedPlayer, &graphics);
-    handleEvents(&curPlayer, &quit);
+    handleEvents(&quit);
+    handleKeyboard(&curPlayer);
   }
   return cleanUpAndExit(&graphics);
 }

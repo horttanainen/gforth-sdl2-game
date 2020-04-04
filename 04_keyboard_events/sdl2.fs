@@ -21,6 +21,7 @@ c-function sdl-destroy-renderer SDL_DestroyRenderer a -- void
 c-function sdl-create-texture-from-surface SDL_CreateTextureFromSurface   a a -- a
 c-function sdl-render-clear     SDL_RenderClear     a -- n
 c-function sdl-render-copy      SDL_RenderCopy      a a a a -- n
+c-function sdl-render-copy-f    SDL_RenderCopyF     a a a a -- n
 c-function sdl-render-present   SDL_RenderPresent   a -- void
 c-function sdl-destroy-texture  SDL_DestroyTexture  a -- void
 c-function sdl-set-render-draw-color SDL_SetRenderDrawColor   a u u u u -- n
@@ -29,6 +30,8 @@ c-function sdl-geterror         SDL_GetError      -- s
 
 c-function sdl-poll-event       SDL_PollEvent     a -- n
 c-function sdl-wait-event       SDL_WaitEvent     a -- n
+
+c-function sdl-get-keyboard-state SDL_GetKeyboardState a -- a
 
 end-c-library
 
@@ -43,6 +46,10 @@ end-c-library
 $00000020	constant SDL_INIT_VIDEO
 $1FFF0000 constant SDL_WINDOWPOS_UNDEFINED
 
+4 constant SDL_SCANCODE_A
+7 constant SDL_SCANCODE_D
+22 constant SDL_SCANCODE_S
+26 constant SDL_SCANCODE_W
 
 struct
   int% field x
@@ -50,6 +57,13 @@ struct
   int% field w
   int% field h
 end-struct sdl-rect%
+
+struct
+  float% field fx
+  float% field fy
+  float% field fw
+  float% field fh
+end-struct sdl-frect%
 
 struct
   int% field sdl-event-type
