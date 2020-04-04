@@ -11,7 +11,7 @@ typedef struct {
   SDL_Window * window;
   SDL_Renderer * renderer;
   SDL_Texture * texture;
-} Screen;
+} Graphics;
 
 typedef struct {
   float x;
@@ -35,8 +35,6 @@ time_t currentTime() {
   return ts.tv_nsec;
 }
 
-bool quit = false;
-
 SDL_Texture * loadGraphics(SDL_Renderer * renderer) {
   SDL_Surface * image = SDL_LoadBMP("man.bmp");
   SDL_Texture * texture = SDL_CreateTextureFromSurface(renderer, image);
@@ -44,7 +42,7 @@ SDL_Texture * loadGraphics(SDL_Renderer * renderer) {
   return texture;
 }
 
-Screen initScreen() {
+Graphics initGraphics() {
   SDL_Window * window = SDL_CreateWindow(
       "Game",
       SDL_WINDOWPOS_UNDEFINED,
@@ -54,12 +52,12 @@ Screen initScreen() {
       0);
   SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, 0);
   SDL_Texture * texture = loadGraphics(renderer);
-  Screen screen = {
+  Graphics graphics = {
     .window = window,
     .renderer = renderer,
     .texture = texture
   };
-  return screen;
+  return graphics;
 }
 
 Player initPlayer() {
@@ -84,16 +82,7 @@ Time initTime() {
   return time;
 }
 
-void handleEvents(Player * player) {
-  SDL_Event event;
-  SDL_PollEvent(&event);
-  switch (event.type)
-  {
-    case SDL_QUIT:
-      quit = true;
-      break;
-  }
-
+void handleKeyboard(Player * player) {
   const Uint8 *keyboardState = SDL_GetKeyboardState(NULL);
   if (keyboardState[SDL_SCANCODE_A] && keyboardState[SDL_SCANCODE_D]) {
     player->ax = 0;
@@ -115,10 +104,22 @@ void handleEvents(Player * player) {
   }
 }
 
-int cleanUpAndExit(Screen * screen) {
-  SDL_DestroyTexture(screen->texture);
-  SDL_DestroyRenderer(screen->renderer);
-  SDL_DestroyWindow(screen->window); 
+void handleEvents(Player * player, bool * quit) {
+  SDL_Event event;
+  SDL_PollEvent(&event);
+  switch (event.type)
+  {
+    case SDL_QUIT:
+      *quit = true;
+      break;
+  }
+  handleKeyboard(player);
+}
+
+int cleanUpAndExit(Graphics * graphics) {
+  SDL_DestroyTexture(graphics->texture);
+  SDL_DestroyRenderer(graphics->renderer);
+  SDL_DestroyWindow(graphics->window); 
   SDL_Quit();
   return 0;
 }
@@ -131,25 +132,26 @@ void integrate(Player * player, double dt) {
   player->y += player->vy * dt;
 }
 
-void render(Player * player, Screen * screen) {
+void render(Player * player, Graphics * graphics) {
   SDL_Rect dstrect = { player->x, player->y, 64, 64 };
-  SDL_RenderClear(screen->renderer);
-  SDL_RenderCopy(screen->renderer, screen->texture, NULL, &dstrect);
-  SDL_RenderPresent(screen->renderer);
+  SDL_RenderClear(graphics->renderer);
+  SDL_RenderCopy(graphics->renderer, graphics->texture, NULL, &dstrect);
+  SDL_RenderPresent(graphics->renderer);
 }
 
 int main(int argc, char ** argv)
 {
   SDL_Init(SDL_INIT_VIDEO);
 
-  Screen screen = initScreen();
+  bool quit = false;
+  Graphics graphics = initGraphics();
 
   Player curPlayer = initPlayer();
   Player prevPlayer;
 
   Time time = initTime();
 
-  SDL_SetRenderDrawColor(screen.renderer, 255, 255, 255, 255);
+  SDL_SetRenderDrawColor(graphics.renderer, 255, 255, 255, 255);
 
   while (!quit)
   {
@@ -176,8 +178,8 @@ int main(int argc, char ** argv)
       .y = curPlayer.y * alpha + prevPlayer.y * ( 1.0 - alpha),
     };
 
-    render(&interpolatedPlayer, &screen);
-    handleEvents(&curPlayer);
+    render(&interpolatedPlayer, &graphics);
+    handleEvents(&curPlayer, &quit);
   }
-  return cleanUpAndExit(&screen);
+  return cleanUpAndExit(&graphics);
 }
