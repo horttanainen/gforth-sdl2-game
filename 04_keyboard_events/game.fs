@@ -8,6 +8,27 @@ require sdl2.fs
 ;
 
 struct
+  float% field dt'
+  double% field t'
+  float% field acc'
+end-struct time%
+
+time% %allot constant time
+
+: dt@ time dt' f@ ;
+: dt! time dt' f! ;
+: t@ time t' 2@ ;
+: t! time t' 2! ;
+: acc@ time acc' f@ ;
+: acc! time acc' f! ;
+
+: init-time ( -- )
+  0.01e dt!
+  utime t!
+  0e acc!
+;
+
+struct
   float% field pos-x
   float% field pos-y
   float% field ax
@@ -18,6 +39,8 @@ struct
 end-struct player%
 
 player% %allot constant player
+player% %allot constant interpolated-player
+player% %allot value previous-player
 
 : init-player ( -- )
   288e player pos-x f!
@@ -88,48 +111,12 @@ false value quit-flag
   then
 ;
 
-: handle-event ( -- )
-  event sdl-event-type ul@
-  case
-    SDL_QUIT of     \ window close box clicked, or ALT-F4 pressed
-      true to quit-flag
-    endof
-  endcase
-;
-
-sdl-rect% %allot constant 'player-rect
-: player-rect ( -- 'player-rect ) 
-  player pos-x f@ fround f>s 'player-rect x !
-  player pos-y f@ fround f>s 'player-rect y !
-  64 'player-rect w !
-  64 'player-rect h !
-  'player-rect
-;
-
-: render-player ( -- ) 
-  renderer
-  texture
-  0
-  player-rect
-  sdl-render-copy drop
-;
-
-: render ( -- ) 
-  renderer sdl-render-clear drop
-  render-player 
-  renderer sdl-render-present
-;
-
-: set-background-color ( -- ) 
-  renderer 255 255 255 255 sdl-set-render-draw-color drop
+: pending-events? ( -- flag )
+  event sdl-poll-event
 ;
 
 : should-quit? ( -- flag )
   quit-flag 0<>
-;
-
-: pending-events? ( -- flag )
-  event sdl-poll-event
 ;
 
 : key-pressed? ( keycode keyboard-state -- flag )
@@ -187,33 +174,79 @@ sdl-rect% %allot constant 'player-rect
   endif
 ;
 
-
 : handle-keyboard ( -- )
   0 sdl-get-keyboard-state
   dup handle-x-movement
   handle-y-movement
 ;
 
-: integrate
-  player ax f@ 0.01e f* player vx +f!
-  player vx f@ 0.01e f* player pos-x +f!
 
-  player ay f@ 0.01e f* player vy +f!
-  player vy f@ 0.01e f* player pos-y +f!
+: handle-events ( -- )
+  begin
+    pending-events?
+  while
+    event sdl-event-type ul@
+    case
+      SDL_QUIT of     \ window close box clicked, or ALT-F4 pressed
+        true to quit-flag
+      endof
+    endcase
+  repeat
+  handle-keyboard
 ;
 
-: main-loop ( -- ) 
-  begin                       
-    begin
-      pending-events?
-    while
-      handle-event
-    repeat
-    integrate
-    render
-    handle-keyboard
-    should-quit?
-  until
+sdl-rect% %allot constant 'player-rect
+: player-rect ( -- 'player-rect ) 
+  interpolated-player pos-x f@ fround f>s 'player-rect x !
+  interpolated-player pos-y f@ fround f>s 'player-rect y !
+  64 'player-rect w !
+  64 'player-rect h !
+  'player-rect
+;
+
+: render-player ( -- ) 
+  renderer
+  texture
+  0
+  player-rect
+  sdl-render-copy drop
+;
+
+: render ( -- ) 
+  renderer sdl-render-clear drop
+  render-player 
+  renderer sdl-render-present
+;
+
+: set-background-color ( -- ) 
+  renderer 255 255 255 255 sdl-set-render-draw-color drop
+;
+: calculate-time ( -- )
+  utime ( -- dtime )
+  2dup ( -- dtime dtime)
+  t@ ( -- dtime dtime t )
+  d- ( -- dtime frame-t )
+  dabs ( -- dtime frame-t )
+  d>f ( -- dtime fframe-t )
+  0.25e fmin ( -- dtime fframe-t )
+  acc!
+  t!
+;
+
+: integrate ( -- )
+  calculate-time
+  begin
+    acc@ dt@ f>=
+  while
+    player to previous-player
+
+    player ax f@ dt@ f* player vx +f!
+    player vx f@ dt@ f* player pos-x +f!
+    player ay f@ dt@ f* player vy +f!
+    player vy f@ dt@ f* player pos-y +f!
+
+    acc@ dt@ f- acc!
+  repeat
 ;
 
 : graceful-quit ( -- )
@@ -223,12 +256,42 @@ sdl-rect% %allot constant 'player-rect
   sdl-quit
 ;
 
+: interpolate-player-pos-x { F: alpha -- }
+  1e alpha f- previous-player pos-x f@ f*
+  alpha player pos-x f@ f*
+  f+
+;
+
+: interpolate-player-pos-y { F: alpha -- }
+  1e alpha f- previous-player pos-y f@ f*
+  alpha player pos-y f@ f*
+  f+
+;
+
+: interpolate-player
+  acc@ dt@ f/ ( -- alpha )
+  fdup ( -- alpha alpha )
+  interpolate-player-pos-x interpolated-player pos-x f!
+  interpolate-player-pos-y interpolated-player pos-y f!
+;
+
+: main-loop
+  begin
+    integrate
+    interpolate-player
+    render
+    handle-events
+    should-quit?
+  until
+;
+
 init-sdl 
 create-window to window
 create-renderer to renderer
 load-texture to texture
 set-background-color
 init-player
+init-time
 main-loop
 graceful-quit
 bye
