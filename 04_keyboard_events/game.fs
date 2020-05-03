@@ -49,7 +49,7 @@ player% %allot value previous-player
   0e player ay f!
   0e player vx f!
   0e player vy f!
-  10e player f f!
+  1e player f f!
 ;
 
 0 value window
@@ -180,7 +180,6 @@ false value quit-flag
   handle-y-movement
 ;
 
-
 : handle-events ( -- )
   begin
     pending-events?
@@ -234,7 +233,6 @@ sdl-rect% %allot constant 'player-rect
 ;
 
 : integrate ( -- )
-  calculate-time
   begin
     acc@ dt@ f>=
   while
@@ -277,6 +275,7 @@ sdl-rect% %allot constant 'player-rect
 
 : main-loop
   begin
+    calculate-time
     integrate
     interpolate-player
     render
