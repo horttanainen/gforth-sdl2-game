@@ -1,0 +1,25 @@
+Added fps counter and some tests. Fixed some bugs in the fixed timestep code.
+
+Prerequisites:
+make
+sdl2
+gforth
+clang
+
+To build the c code:
+make
+
+To run the c code:
+./game
+
+To build c tests:
+make tests
+
+To run c tests
+./tests
+
+To run the forth version:
+gforth game.fs
+
+To run forth tests:
+gforth tests.fs
