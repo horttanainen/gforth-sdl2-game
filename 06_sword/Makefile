@@ -10,7 +10,7 @@ LFLAGS = $(shell sdl2-config --libs)
 TARGET = game
   
 all: $(TARGET)
-$(TARGET): $(TARGET).c ; $(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c $(LFLAGS)
+$(TARGET): $(TARGET).c ; $(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c $(LFLAGS) mathc.c
 
 TESTS_TARGET = tests
 

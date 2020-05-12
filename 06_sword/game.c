@@ -7,15 +7,24 @@
 #include <string.h>
 #include <SDL2/SDL.h>
 #include "game-time.h"
+#include "mathc.h"
+
+typedef struct vec3 Vector;
 
 typedef struct {
-  float x;
-  float y;
-  float vx;
-  float vy;
-  float ax;
-  float ay;
-  float f;
+  Vector pos;
+  float speed;
+  float acceleration;
+  float mass;
+  float distance;
+} SwordPoint;
+
+typedef struct {
+  Vector pos;
+  float speed;
+  float acceleration;
+  float mass;
+  Vector force;
 } Player;
 
 typedef struct {
@@ -25,6 +34,11 @@ typedef struct {
   Timespec fpsUpdate;
 } Time;
 
+typedef struct {
+  Player player;
+  SwordPoint swordPoint;
+} Scene;
+
 SDL_Texture * loadTexture(SDL_Renderer * renderer) {
   SDL_Surface * image = SDL_LoadBMP("man.bmp");
   SDL_Texture * texture = SDL_CreateTextureFromSurface(renderer, image);
@@ -32,48 +46,69 @@ SDL_Texture * loadTexture(SDL_Renderer * renderer) {
   return texture;
 }
 
-Player initPlayer() {
+Scene initScene() {
   Player player = {
-    .x = 288,
-    .y = 208,
-    .vx = 0,
-    .vy = 0,
-    .ax = 0,
-    .ay = 0,
-    .f = 1000
+    .pos = {
+      .x = 288,
+      .y = 208
+    },
+    .speed = 0,
+    .acceleration = 0,
+    .mass = 100,
+    .force = {
+      .x = 0,
+      .y = 0,
+      .z = 0
+    },
   };
-  return player;
+  float swordLength = 128;
+  SwordPoint swordPoint = {
+    .pos = {
+      .x = 288 - swordLength,
+      .y = 208 + 32
+    },
+    .speed = 0,
+    .acceleration = 0,
+    .mass = 100,
+    .distance = swordLength
+  };
+  Scene scene = {
+    .player = player,
+    .swordPoint = swordPoint
+  };
+  return scene;
 }
 
 Time initTime() {
   Time time = {
     .dt = 0.01,
     .t = currentTime(),
-    .acc = 0,
+    .acc = 0.01,
     .fpsUpdate = currentTime()
   };
   return time;
 }
 
 void handleKeyboard(Player * player) {
+  float strength = 1000000;
   const Uint8 * keyboardState = SDL_GetKeyboardState(NULL);
   if (keyboardState[SDL_SCANCODE_A] && keyboardState[SDL_SCANCODE_D]) {
-    player->ax = 0;
+    player->force.x = 0;
   } else if (keyboardState[SDL_SCANCODE_A]) {
-    player->ax = -player->f;
+    player->force.x = -strength;
   } else if (keyboardState[SDL_SCANCODE_D]) {
-    player->ax = player->f;
+    player->force.x = strength;
   } else {
-    player->ax = 0;
+    player->force.x = 0;
   }
   if (keyboardState[SDL_SCANCODE_W] && keyboardState[SDL_SCANCODE_S]) {
-    player->ay = 0;
+    player->force.y = 0;
   } else if (keyboardState[SDL_SCANCODE_W]) {
-    player->ay = -player->f;
+    player->force.y = -strength;
   } else if (keyboardState[SDL_SCANCODE_S]) {
-    player->ay = player->f;
+    player->force.y = strength;
   } else {
-    player->ay = 0;
+    player->force.y = 0;
   }
 }
 
@@ -96,19 +131,73 @@ int cleanUpAndExit(SDL_Texture * texture, SDL_Renderer * renderer, SDL_Window * 
   return 0;
 }
 
-void integrate(Player * player, double dt) {
-  player->vx += player->ax * dt;
-  player->x += player->vx * dt;
+void integrate(SDL_Renderer * renderer, Scene * scene, double dt) {
+  Player * player = &scene->player;
+  SwordPoint * swordPoint = &scene->swordPoint;
 
-  player->vy += player->ay * dt;
-  player->y += player->vy * dt;
+  float massC = player->mass + swordPoint->mass;
+  Vector posC = svec3_add(
+      svec3_multiply_f(player->pos, player->mass / massC),
+      svec3_multiply_f(swordPoint->pos, swordPoint->mass / massC)
+      );
+
+  SDL_SetRenderDrawColor(renderer, 255, 0, 0, SDL_ALPHA_OPAQUE);
+  SDL_RenderDrawLine(renderer, 0 , 0, posC.x, posC.y);
+
+  Vector fromCToPlayer = svec3_subtract(player->pos, posC);
+  Vector fromCToPlayerPos = svec3_add(posC, fromCToPlayer);
+
+  SDL_SetRenderDrawColor(renderer, 0, 255, 0, SDL_ALPHA_OPAQUE);
+  SDL_RenderDrawLine(renderer, posC.x , posC.y, fromCToPlayerPos.x, fromCToPlayerPos.y);
+
+  SDL_SetRenderDrawColor(renderer, 0, 0, 255, SDL_ALPHA_OPAQUE);
+  SDL_RenderDrawLine(renderer, 0 , 0, player->pos.x, player->pos.y);
+
+  float playerRadius = svec3_length(fromCToPlayer);
+
+  float torque = fromCToPlayer.y * player->force.x - fromCToPlayer.x * player->force.y;
+
+  player->acceleration = torque / (player->mass * playerRadius * playerRadius);
+
+  player->speed += player->acceleration * dt;
+
+  Vector tangent = {
+    .x = fromCToPlayer.y,
+    .y = -fromCToPlayer.x
+  };
+  Vector unitTangent = svec3_normalize(tangent);
+
+  player->pos = svec3_add(player->pos,svec3_multiply_f(unitTangent, player->speed * dt));
+
+  Vector fromCToSwordPoint = svec3_subtract(swordPoint->pos, posC);
+  float swordPointRadius = svec3_length(fromCToSwordPoint);
+
+  swordPoint->acceleration = -torque / ( swordPoint->mass * swordPointRadius * swordPointRadius);
+
+  swordPoint->speed += swordPoint->acceleration * dt;
+
+  Vector swordTangent = {
+    .x = -fromCToSwordPoint.y,
+    .y = fromCToSwordPoint.x
+  };
+  Vector swordUnitTangent = svec3_normalize(swordTangent);
+
+  swordPoint->pos = svec3_add(swordPoint->pos, svec3_multiply_f(swordUnitTangent, swordPoint->speed * dt));
 }
 
-void render(Player * player, SDL_Texture * texture, SDL_Renderer * renderer) {
-  SDL_Rect dstrect = { player->x, player->y, 64, 64 };
-  SDL_RenderClear(renderer);
+void render(Scene * scene, SDL_Texture * texture, SDL_Renderer * renderer) {
+  Player * player = &scene->player;
+  SwordPoint * swordPoint = &scene->swordPoint;
+
+  SDL_Rect dstrect = { player->pos.x, player->pos.y, 64, 64 };
   SDL_RenderCopy(renderer, texture, NULL, &dstrect);
+
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+  SDL_RenderDrawLine(renderer, swordPoint->pos.x , swordPoint->pos.y, player->pos.x + 32, player->pos.y + 32);
+  SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+
   SDL_RenderPresent(renderer);
+  SDL_RenderClear(renderer);
 }
 
 void fps(Time * time, SDL_Window * window) {
@@ -139,8 +228,8 @@ int main(int argc, char ** argv)
   SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, 0);
   SDL_Texture * texture = loadTexture(renderer);
 
-  Player curPlayer = initPlayer();
-  Player prevPlayer;
+  Scene curScene = initScene();
+  Scene prevScene = curScene;
 
   Time time = initTime();
 
@@ -160,22 +249,31 @@ int main(int argc, char ** argv)
 
     while ( time.acc >= time.dt )
     {
-      prevPlayer = curPlayer;
-      integrate(&curPlayer, time.dt);
+      prevScene = curScene;
+      integrate(renderer, &curScene, time.dt);
       time.t = timespecAdd(secondsToTimespec(time.dt), time.t);
       time.acc -= time.dt;
     }
 
     const double alpha = time.acc / time.dt;
 
-    Player interpolatedPlayer = {
-      .x = curPlayer.x * alpha + prevPlayer.x * ( 1.0 - alpha),
-      .y = curPlayer.y * alpha + prevPlayer.y * ( 1.0 - alpha),
+    Scene interpolatedScene = {
+      .player = {
+        .pos = svec3_add(
+            svec3_multiply_f(curScene.player.pos, alpha), 
+            svec3_multiply_f(prevScene.player.pos, 1.0 - alpha)
+            )
+      },
+      .swordPoint = {
+        .pos = svec3_add(
+            svec3_multiply_f(curScene.swordPoint.pos, alpha), 
+            svec3_multiply_f(prevScene.swordPoint.pos, 1.0 - alpha)
+            )
+      }
     };
-
-    render(&interpolatedPlayer, texture, renderer);
+    render(&interpolatedScene, texture, renderer);
     handleEvents(&quit);
-    handleKeyboard(&curPlayer);
+    handleKeyboard(&curScene.player);
     fps(&time, window);
   }
   return cleanUpAndExit(texture, renderer, window);
