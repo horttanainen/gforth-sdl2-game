@@ -13,17 +13,23 @@ typedef struct vec3 Vector;
 
 typedef struct {
   Vector pos;
-  float speed;
-  float acceleration;
+  Vector angularVelocity;
+  Vector angularMomemtum;
+  float inertia;
   float mass;
+  Vector linearVelocity;
+  Vector linearMomemtum;
   float distance;
 } SwordPoint;
 
 typedef struct {
   Vector pos;
-  float speed;
-  float acceleration;
+  Vector angularVelocity;
+  Vector angularMomemtum;
+  float inertia;
   float mass;
+  Vector linearVelocity;
+  Vector linearMomemtum;
   Vector force;
 } Player;
 
@@ -52,9 +58,24 @@ Scene initScene() {
       .x = 288,
       .y = 208
     },
-    .speed = 0,
-    .acceleration = 0,
+    .angularVelocity = {
+      .x = 0,
+      .y = 0
+    },
+    .angularMomemtum = {
+      .x = 0,
+      .y = 0
+    },
+    .linearVelocity = {
+      .x = 0,
+      .y = 0
+    },
+    .linearMomemtum = {
+      .x = 0,
+      .y = 0
+    },
     .mass = 100,
+    .inertia = 100,
     .force = {
       .x = 0,
       .y = 0,
@@ -67,9 +88,24 @@ Scene initScene() {
       .x = 288 - swordLength,
       .y = 208 + 32
     },
-    .speed = 0,
-    .acceleration = 0,
-    .mass = 100,
+    .angularVelocity = {
+      .x = 0,
+      .y = 0
+    },
+    .angularMomemtum = {
+      .x = 0,
+      .y = 0
+    },
+    .linearVelocity = {
+      .x = 0,
+      .y = 0
+    },
+    .linearMomemtum = {
+      .x = 0,
+      .y = 0
+    },
+    .mass = 10,
+    .inertia = 10,
     .distance = swordLength
   };
   Scene scene = {
@@ -90,7 +126,7 @@ Time initTime() {
 }
 
 void handleKeyboard(Player * player) {
-  float strength = 1000000;
+  float strength = 10000;
   const Uint8 * keyboardState = SDL_GetKeyboardState(NULL);
   if (keyboardState[SDL_SCANCODE_A] && keyboardState[SDL_SCANCODE_D]) {
     player->force.x = 0;
@@ -136,6 +172,13 @@ void integrate(SDL_Renderer * renderer, Scene * scene, double dt) {
   SwordPoint * swordPoint = &scene->swordPoint;
 
   float massC = player->mass + swordPoint->mass;
+
+  player->linearMomemtum = svec3_add(player->linearMomemtum, svec3_multiply_f(player->force, dt));
+  player->linearVelocity = svec3_divide_f(player->linearMomemtum, massC);
+
+  swordPoint->linearMomemtum = svec3_add(swordPoint->linearMomemtum, svec3_multiply_f(player->force, dt));
+  swordPoint->linearVelocity = svec3_divide_f(swordPoint->linearMomemtum, massC);
+
   Vector posC = svec3_add(
       svec3_multiply_f(player->pos, player->mass / massC),
       svec3_multiply_f(swordPoint->pos, swordPoint->mass / massC)
@@ -153,36 +196,32 @@ void integrate(SDL_Renderer * renderer, Scene * scene, double dt) {
   SDL_SetRenderDrawColor(renderer, 0, 0, 255, SDL_ALPHA_OPAQUE);
   SDL_RenderDrawLine(renderer, 0 , 0, player->pos.x, player->pos.y);
 
-  float playerRadius = svec3_length(fromCToPlayer);
+  Vector torque = svec3_cross(fromCToPlayer, svec3_divide_f(player->force, 10000));
 
-  float torque = fromCToPlayer.y * player->force.x - fromCToPlayer.x * player->force.y;
+  player->angularMomemtum = svec3_add(player->angularMomemtum, svec3_multiply_f(torque, dt));
 
-  player->acceleration = torque / (player->mass * playerRadius * playerRadius);
+  player->angularVelocity = svec3_divide_f(player->angularMomemtum, player->inertia);
 
-  player->speed += player->acceleration * dt;
+  Vector playerPointVelocity = svec3_add(player->linearVelocity, svec3_cross(player->angularVelocity, fromCToPlayer));
 
-  Vector tangent = {
-    .x = fromCToPlayer.y,
-    .y = -fromCToPlayer.x
-  };
-  Vector unitTangent = svec3_normalize(tangent);
+  player->pos = svec3_add(player->pos,  svec3_multiply_f(playerPointVelocity, dt));
 
-  player->pos = svec3_add(player->pos,svec3_multiply_f(unitTangent, player->speed * dt));
+  swordPoint->angularMomemtum = svec3_add(swordPoint->angularMomemtum, svec3_multiply_f(torque, dt));
+  swordPoint->angularVelocity = svec3_divide_f(swordPoint->angularMomemtum, swordPoint->inertia);
 
-  Vector fromCToSwordPoint = svec3_subtract(swordPoint->pos, posC);
-  float swordPointRadius = svec3_length(fromCToSwordPoint);
+  Vector fromSwordPointToC = svec3_subtract(swordPoint->pos, posC);
 
-  swordPoint->acceleration = -torque / ( swordPoint->mass * swordPointRadius * swordPointRadius);
+  Vector swordPointVelocity = svec3_add(swordPoint->linearVelocity, svec3_cross(swordPoint->angularVelocity, fromSwordPointToC));
 
-  swordPoint->speed += swordPoint->acceleration * dt;
+  swordPoint->pos = svec3_add(swordPoint->pos, svec3_multiply_f(swordPointVelocity, dt));
 
-  Vector swordTangent = {
-    .x = -fromCToSwordPoint.y,
-    .y = fromCToSwordPoint.x
-  };
-  Vector swordUnitTangent = svec3_normalize(swordTangent);
+  Vector fromPlayerToSwordPoint = svec3_subtract(swordPoint->pos, player->pos);
 
-  swordPoint->pos = svec3_add(swordPoint->pos, svec3_multiply_f(swordUnitTangent, swordPoint->speed * dt));
+  float currentDistance = svec3_length(fromPlayerToSwordPoint);
+
+  if (currentDistance > swordPoint->distance + 10) {
+    swordPoint->pos = svec3_add(player->pos, svec3_multiply_f(fromPlayerToSwordPoint, swordPoint->distance / currentDistance));
+  }
 }
 
 void render(Scene * scene, SDL_Texture * texture, SDL_Renderer * renderer) {
